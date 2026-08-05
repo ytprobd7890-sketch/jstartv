@@ -1267,12 +1267,15 @@
                 if (ch.headers['User-Agent']) req.headers['User-Agent'] = ch.headers['User-Agent'];
                 if (ch.headers['Referer'])    req.headers['Referer'] = ch.headers['Referer'];
             }
-            // Only proxy if URL is NOT already going through our proxy and is not https to same origin
+            // Only proxy if URL is NOT already going through our proxy and is not same origin.
+            // NOTE: Manifest rewriting already replaces segment URLs with /api/seg?u=... so
+            // we don't need to double-proxy those — this filter is a safety net for stray
+            // absolute URLs the rewriter missed.
             const orig = req.uris[0];
             if (!isProxiedUrl(orig) && window.location.protocol.startsWith('http') &&
                 !orig.startsWith(window.location.origin) &&
                 /^https?:/.test(orig)) {
-                req.uris[0] = `${window.location.origin}/api/proxy?url=${encodeURIComponent(orig)}`;
+                req.uris[0] = `${window.location.origin}/api/seg?u=${encodeURIComponent(orig)}`;
             }
         });
 
@@ -1314,21 +1317,30 @@
     }
 
     function configureDrm(ch) {
-        const hasLicenseUrl = typeof ch.license_key === 'string' && ch.license_key.startsWith('http');
+        const hasLicenseUrl = typeof ch.license_key === 'string' && ch.license_key.length > 0;
         const hasCk = ch.clearKeys && Object.keys(ch.clearKeys).length > 0;
         const cfg = { drm: { clearKeys: {}, servers: {} } };
 
         if (hasLicenseUrl) {
-            let url = ch.license_key;
-            if (window.location.protocol.startsWith('http') && !isProxiedUrl(url)) {
-                url = `${window.location.origin}/api/proxy?url=${encodeURIComponent(ch.license_key)}`;
-            }
+            // license_key IS our server-side DRM endpoint (absolute or relative).
+            // Don't proxy it again — it's our own server.
+            const url = ch.license_key.startsWith('http') || ch.license_key.startsWith('/')
+                ? ch.license_key
+                : new URL(ch.license_key, window.location.origin).href;
             cfg.drm.servers = {
                 'org.w3.clearkey': url,
                 'com.widevine.alpha': url,
                 'com.microsoft.playready': url
             };
+            // Shaka uses POST with {"kids":[...]} for clearKey license server
+            cfg.drm.advanced = {
+                'org.w3.clearkey': {
+                    videoRobustness: '',
+                    audioRobustness: ''
+                }
+            };
         } else if (hasCk) {
+            // Fallback: raw keys (used in direct json mode, e.g. local dev)
             const toHex = b64url => {
                 let b = b64url.replace(/-/g, '+').replace(/_/g, '/');
                 while (b.length % 4) b += '=';
@@ -2164,15 +2176,18 @@
         try {
             const r = await fetch(PLAYLIST_URL, { cache: 'no-cache' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
-            const data = await r.json();
-            state.channels = data.map((c, i) => ({
-                id: 'ch_' + i,
-                name: c.name || ('Channel ' + (i+1)),
-                tvg_id: c.tvg_id,
+            const envelope = await r.json();
+            const raw = envelope.channels || envelope;
+            state.channels = raw.map((c, i) => ({
+                id: c.id || ('ch_' + i),
+                name: c.name || ('Channel ' + (c.idx || i+1)),
+                tvg_id: c.tvg_id || String(c.idx || i+1),
                 logo: c.logo || '',
                 group: c.group || 'Other',
-                url: c.proxied_url || c.original_url || '',
-                license_key: c.license_key || '',
+                url: c.url || '',
+                // Server gives us a license_server URL; use that for DRM
+                license_key: c.license_server || c.license_key || '',
+                // Client-side keys no longer in safe playlist — DRM handled by license endpoint
                 clearKeys: c.clearKeys || {},
                 headers: c.headers || {}
             }));
