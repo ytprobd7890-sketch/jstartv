@@ -1,0 +1,17 @@
+# Render blueprint — one-click deploy
+services:
+  - type: web
+    name: jstar-pro-lite
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    nodeVersion: 20
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PLAYLIST_URL
+        sync: false   # set this in Render dashboard if you host your own jstarww.json
+    staticPublishPath: ./public
+    healthCheckPath: /api/health
+    autoDeploy: true

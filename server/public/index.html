@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#06070b">
+    <title>JStar Pro Premium ATV Launcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/5.2.0/shaka-player.compiled.js"></script>
+    <style>
+        /* ===== RESET & TOKENS ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-base: #06070b;
+            --bg-surface: rgba(18, 22, 35, 0.55);
+            --bg-surface-hover: rgba(26, 31, 48, 0.85);
+            --bg-sidebar: #0a0b12;
+            --bg-card-focused: #141827;
+            --accent: #a78bfa;
+            --accent-soft: rgba(167, 139, 250, 0.15);
+            --danger: #ef4444;
+            --ok: #10b981;
+            --warn: #f59e0b;
+            --text-main: #f9fafb;
+            --text-dim: #9ca3af;
+            --text-muted: #4b5563;
+            --border-color: rgba(255, 255, 255, 0.06);
+            --border-focus: rgba(167, 139, 250, 0.55);
+            --card-w: 220px;
+            --card-h: 118px;
+            --gap: 1rem;
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --ease: cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        html, body {
+            height: 100%;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            overflow: hidden;
+            user-select: none;
+            outline: none;
+        }
+        body { display: flex; }
+        ::selection { background: var(--accent-soft); }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+        /* ===== VIDEO VIEWPORT ===== */
+        .video-viewport {
+            position: absolute; inset: 0; z-index: 1;
+            background: #000;
+        }
+        video {
+            width: 100%; height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        /* Buffering spinner */
+        .buffer-spinner {
+            position: absolute; top: 50%; left: 50%;
+            width: 54px; height: 54px;
+            margin: -27px 0 0 -27px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5;
+            transition: opacity 0.25s ease;
+        }
+        .buffer-spinner.visible { opacity: 1; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error overlay */
+        .stream-error {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 1rem; z-index: 6;
+            background: rgba(6,7,11,0.92);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+            text-align: center; padding: 2rem;
+        }
+        .stream-error.visible { opacity: 1; pointer-events: auto; }
+        .stream-error-icon {
+            width: 64px; height: 64px; color: var(--danger);
+        }
+        .stream-error h3 { font-size: 1.4rem; font-weight: 700; }
+        .stream-error p { color: var(--text-dim); font-size: 0.9rem; max-width: 420px; }
+
+        /* ===== UI SHIELD ===== */
+        .ui-shield {
+            position: absolute; inset: 0; z-index: 2;
+            background-color: rgba(6, 7, 11, 0.92);
+            backdrop-filter: blur(24px) saturate(120%);
+            -webkit-backdrop-filter: blur(24px) saturate(120%);
+            display: flex;
+            transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+        }
+        .ui-shield.hidden {
+            opacity: 0; pointer-events: none;
+            transform: scale(1.02);
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 270px;
+            background: linear-gradient(180deg, var(--bg-sidebar) 0%, #07080e 100%);
+            border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column;
+            padding: 1.75rem 1.25rem 1.25rem;
+            z-index: 5;
+            overflow-y: auto;
+            gap: 1.5rem;
+        }
+        .logo-box {
+            display: flex; align-items: center; gap: 0.7rem;
+            padding: 0.25rem 0.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .logo-mark {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+        }
+        .logo-box h2 {
+            font-size: 1.2rem; font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+        .logo-box small {
+            display: block;
+            font-size: 0.65rem;
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .menu-section { display: flex; flex-direction: column; gap: 0.25rem; }
+        .menu-title {
+            font-size: 0.65rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.14em;
+            color: var(--text-muted);
+            padding: 0.25rem 0.75rem;
+        }
+        .menu-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.7rem 0.9rem;
+            border-radius: var(--radius-md);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 600; font-size: 0.85rem;
+            transition: background 0.15s ease, color 0.15s ease;
+            gap: 0.5rem;
+        }
+        .menu-item:hover { color: var(--text-main); background: rgba(255,255,255,0.03); }
+        .menu-item.focused {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-main);
+            outline: none;
+        }
+        .menu-item.active { color: var(--accent); }
+        .menu-item.active .menu-count { color: var(--accent); border-color: rgba(167,139,250,0.2); background: var(--accent-soft); }
+        .menu-count {
+            font-size: 0.68rem;
+            padding: 0.1rem 0.5rem;
+            border-radius: 20px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            background: rgba(255,255,255,0.03);
+        }
+        .menu-icon {
+            width: 18px; height: 18px;
+            display: inline-flex; align-items: center; justify-content: center;
+            opacity: 0.7;
+            margin-right: 0.35rem;
+        }
+        .menu-item.focused .menu-icon,
+        .menu-item.active .menu-icon { opacity: 1; }
+        .search-wrap {
+            position: relative;
+            margin-top: -0.5rem;
+        }
+        .search-input {
+            width: 100%;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.6rem 0.85rem 0.6rem 2rem;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-family: inherit;
+            font-weight: 500;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .search-input::placeholder { color: var(--text-muted); }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            background: rgba(255,255,255,0.06);
+        }
+        .search-icon {
+            position: absolute; left: 0.7rem; top: 50%;
+            transform: translateY(-50%);
+            width: 14px; height: 14px; color: var(--text-muted);
+            pointer-events: none;
+        }
+        .search-clear {
+            position: absolute; right: 0.5rem; top: 50%;
+            transform: translateY(-50%);
+            width: 20px; height: 20px;
+            border: none; background: rgba(255,255,255,0.05);
+            color: var(--text-dim);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px; line-height: 1;
+            display: none;
+            align-items: center; justify-content: center;
+        }
+        .search-clear.visible { display: flex; }
+        .color-legend {
+            margin-top: auto;
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 0.65rem; font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+        .ck { display: flex; align-items: center; gap: 0.4rem; }
+        .dot-red { color: var(--danger); }
+        .dot-green { color: var(--ok); }
+        .dot-yellow { color: var(--warn); }
+        .dot-blue { color: #3b82f6; }
+        .star { color: #fbbf24; }
+
+        /* ===== WORKSPACE ===== */
+        .workspace {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 1.75rem 2rem 1.25rem;
+            overflow: hidden; gap: 1rem;
+            min-width: 0;
+        }
+        .top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 1rem;
+        }
+        .top-left h3 {
+            font-size: 1.5rem; font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+        .top-left .sub {
+            font-size: 0.75rem; color: var(--text-dim);
+            font-weight: 600; font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.15rem;
+            letter-spacing: 0.02em;
+        }
+        .top-right {
+            display: flex; align-items: center; gap: 1.25rem;
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--ok);
+            box-shadow: 0 0 10px var(--ok);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse { 50% { opacity: 0.5; } }
+        .clock {
+            font-size: 1.05rem; font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+            letter-spacing: 0.02em;
+        }
+        .clock .date { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 2px; }
+
+        /* ===== EPG CARD ===== */
+        .epg-card {
+            background: linear-gradient(135deg, rgba(167,139,250,0.06), rgba(18,22,35,0.4));
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.2rem 1.5rem;
+            display: flex; align-items: center;
+            gap: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .epg-card::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+            width: 3px; background: var(--accent);
+        }
+        .epg-live-badge {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            background: var(--danger);
+            color: white;
+            font-size: 0.65rem; font-weight: 800;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            letter-spacing: 0.12em;
+            margin-bottom: 0.45rem;
+        }
+        .epg-live-badge .live-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: white; animation: pulse 1.2s infinite;
+        }
+        .epg-now { flex: 1; min-width: 0; }
+        .epg-now-title {
+            font-size: 1.2rem; font-weight: 700;
+            letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .epg-now-meta {
+            display: flex; align-items: center; gap: 0.75rem;
+            margin-top: 0.3rem;
+            font-size: 0.78rem; color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .epg-ch-badge {
+            background: rgba(255,255,255,0.06);
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+        .epg-progress-wrap {
+            margin-top: 0.75rem;
+            height: 4px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+        .epg-progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--accent), #c4b5fd);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 30s linear;
+        }
+        .epg-next {
+            text-align: right;
+            border-left: 1px solid rgba(255,255,255,0.06);
+            padding-left: 1.5rem;
+            flex-shrink: 0;
+            max-width: 230px;
+        }
+        .epg-next-label {
+            font-size: 0.65rem; font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.1em;
+            margin-bottom: 0.25rem;
+        }
+        .epg-next-title {
+            font-size: 0.92rem; font-weight: 600;
+            color: var(--text-dim);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .epg-next-time {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 0.15rem;
+        }
+
+        /* ===== CHANNEL GRID ===== */
+        .channel-area {
+            flex: 1; overflow-y: auto;
+            padding-right: 0.5rem;
+            position: relative;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+            gap: var(--gap);
+            padding-bottom: 1rem;
+        }
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            height: var(--card-h);
+            display: flex; align-items: center;
+            padding: 1rem 1.15rem; gap: 1rem;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.18s var(--ease), border-color 0.18s ease,
+                        background 0.18s ease, box-shadow 0.18s ease;
+            will-change: transform;
+        }
+        .card:hover {
+            background: var(--bg-surface-hover);
+            border-color: rgba(255,255,255,0.12);
+        }
+        .card.focused {
+            transform: scale(1.04);
+            background: var(--bg-card-focused);
+            border-color: var(--border-focus);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4), 0 0 0 2px var(--accent-soft);
+            z-index: 2;
+        }
+        .card.active { border-color: var(--accent); }
+        .card.active::after {
+            content: 'LIVE';
+            position: absolute; top: 0.55rem; left: 0.55rem;
+            background: var(--danger);
+            color: white;
+            font-size: 0.55rem; font-weight: 900;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            letter-spacing: 0.08em;
+        }
+        .card.fav .card-fav { opacity: 1; }
+        .chan-num {
+            position: absolute; top: 0.55rem; right: 0.6rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem; font-weight: 700;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.35);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            backdrop-filter: blur(8px);
+        }
+        .card-fav {
+            position: absolute; bottom: 0.55rem; right: 0.6rem;
+            opacity: 0;
+            width: 16px; height: 16px;
+            color: #fbbf24;
+            transition: opacity 0.15s ease;
+            pointer-events: none;
+        }
+        .card.focused .card-fav { opacity: 1; }
+        .card.fav .card-fav-star { fill: #fbbf24; }
+        .logo-box-card {
+            width: 54px; height: 54px;
+            border-radius: var(--radius-md);
+            background: #fff;
+            display: flex; align-items: center; justify-content: center;
+            padding: 4px; flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card-logo { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .card-logo-fallback {
+            font-size: 1.1rem; font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+        }
+        .card-details { display: flex; flex-direction: column; gap: 0.3rem; overflow: hidden; flex: 1; min-width: 0; }
+        .card-title {
+            font-size: 0.88rem; font-weight: 700;
+            line-height: 1.25;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .card-badge-row { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+        .card-badge {
+            font-size: 0.6rem; font-weight: 700;
+            color: var(--text-dim);
+            background: rgba(255,255,255,0.04);
+            padding: 0.12rem 0.45rem;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .card-badge.hd { color: #60a5fa; background: rgba(96,165,250,0.1); }
+        .card-badge.drm { color: var(--warn); }
+        .card-badge.clear { color: var(--ok); }
+        .empty-state {
+            grid-column: 1/-1;
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-dim);
+        }
+        .empty-state svg { color: var(--text-muted); margin-bottom: 1rem; }
+        .empty-state h3 { color: var(--text-main); font-size: 1.1rem; margin-bottom: 0.35rem; }
+
+        /* ===== PLAYER OSD ===== */
+        .osd-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(6,7,11,0.98) 0%, rgba(6,7,11,0.25) 50%, transparent 70%);
+            display: flex; flex-direction: column;
+            justify-content: space-between;
+            padding: 1.75rem 2.5rem;
+            gap: 1rem;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s var(--ease);
+            z-index: 8;
+        }
+        .osd-overlay.visible { opacity: 1; pointer-events: auto; }
+        .osd-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        .osd-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem; font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.35);
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-md);
+            backdrop-filter: blur(10px);
+        }
+        .osd-epg {
+            background: rgba(10,11,18,0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.25rem;
+            max-width: 560px;
+            margin-bottom: auto;
+        }
+        .osd-epg-live {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            font-size: 0.65rem; font-weight: 800;
+            color: var(--danger);
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+        .osd-epg-title {
+            font-size: 1.05rem; font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .osd-epg-meta {
+            font-size: 0.75rem; color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+            display: flex; gap: 0.6rem; align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .osd-epg-next {
+            font-size: 0.8rem; color: var(--text-dim);
+            margin-top: 0.5rem; padding-top: 0.5rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .osd-epg-next strong { color: var(--text-main); font-weight: 600; }
+
+        .osd-bottom {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            gap: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .osd-info { display: flex; align-items: center; gap: 1.1rem; min-width: 0; flex: 1; }
+        .osd-logo {
+            width: 72px; height: 72px;
+            background: #fff; border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+            padding: 5px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+        }
+        .osd-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .osd-meta { min-width: 0; }
+        .osd-title {
+            font-size: 1.7rem; font-weight: 800;
+            letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .osd-group {
+            font-size: 0.85rem; color: var(--text-dim);
+            font-weight: 600; letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-top: 0.2rem;
+        }
+        .osd-stats { display: flex; gap: 0.45rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 50%; }
+        .pill {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem; font-weight: 700;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.07);
+            padding: 0.3rem 0.6rem;
+            border-radius: 5px;
+            color: var(--text-dim);
+            backdrop-filter: blur(10px);
+            white-space: nowrap;
+        }
+        .pill strong { color: var(--text-main); font-weight: 700; }
+        .pill.ok strong { color: var(--ok); }
+        .pill.warn strong { color: var(--warn); }
+
+        /* ===== QUICK DRAWER ===== */
+        .quick-drawer {
+            position: absolute;
+            left: 2rem; top: 2rem; bottom: 10rem;
+            width: 340px;
+            background: rgba(10,11,18,0.97);
+            backdrop-filter: blur(30px);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateX(-24px);
+            transition: all 0.22s var(--ease);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            z-index: 9;
+        }
+        .quick-drawer.visible {
+            opacity: 1; transform: translateX(0);
+        }
+        .quick-header {
+            padding: 0.9rem 1.1rem;
+            font-size: 0.72rem; font-weight: 800;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-dim);
+            background: rgba(0,0,0,0.25);
+            letter-spacing: 0.1em;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .quick-header .quick-count {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .quick-list {
+            flex: 1; overflow-y: auto;
+            padding: 0.4rem;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .quick-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.55rem 0.7rem;
+            border-radius: 8px; cursor: pointer;
+            color: var(--text-dim);
+            font-weight: 600; font-size: 0.82rem;
+            border: 1px solid transparent;
+            transition: all 0.12s ease;
+            gap: 0.5rem;
+        }
+        .quick-item:hover { background: rgba(255,255,255,0.03); }
+        .quick-item.focused {
+            background: rgba(167,139,250,0.1);
+            border-color: var(--border-focus);
+            color: var(--text-main);
+        }
+        .quick-item.active { color: var(--accent); }
+        .quick-details { display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1; }
+        .quick-item img {
+            width: 26px; height: 26px;
+            border-radius: 4px; object-fit: contain;
+            background: white; padding: 1px; flex-shrink: 0;
+        }
+        .quick-item .fav-star-mini { color: #fbbf24; width: 12px; height: 12px; flex-shrink: 0; }
+        .quick-name {
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .quick-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem; color: var(--text-muted);
+            font-weight: 600; flex-shrink: 0;
+        }
+
+        /* ===== NUMERIC OVERLAY ===== */
+        .numeric-box {
+            position: fixed; top: 2rem; right: 2rem;
+            background: rgba(10,11,18,0.97);
+            border: 1px solid var(--border-focus);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.5rem;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 50;
+            opacity: 0; transform: scale(0.88);
+            transition: all 0.2s var(--ease);
+            pointer-events: none;
+            min-width: 130px;
+        }
+        .numeric-box.visible { opacity: 1; transform: scale(1); }
+        .num-label {
+            font-size: 0.7rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--accent); margin-bottom: 0.15rem;
+        }
+        .num-digits {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.8rem; font-weight: 700;
+            letter-spacing: 0.02em;
+            font-variant-numeric: tabular-nums;
+        }
+        .num-name {
+            font-size: 0.72rem; color: var(--text-dim);
+            font-weight: 600;
+            margin-top: 0.15rem;
+            text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 200px;
+        }
+
+        /* ===== VOLUME HUD ===== */
+        .volume-hud {
+            position: fixed; top: 2rem; left: 50%;
+            transform: translate(-50%, -80px);
+            background: rgba(10,11,18,0.97);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            padding: 0.7rem 1.4rem;
+            display: flex; align-items: center; gap: 1rem;
+            z-index: 50;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            transition: transform 0.22s var(--ease);
+            pointer-events: none;
+        }
+        .volume-hud.visible { transform: translate(-50%, 0); }
+        .vol-icon { display: flex; align-items: center; color: var(--text-main); }
+        .vol-bar {
+            width: 160px; height: 4px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 2px; overflow: hidden; position: relative;
+        }
+        .vol-fill {
+            height: 100%; background: var(--text-main);
+            border-radius: 2px;
+            transition: width 0.1s ease;
+        }
+        .vol-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem; font-weight: 700;
+            min-width: 40px; text-align: right;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed; bottom: 2.5rem; left: 50%;
+            transform: translate(-50%, 80px);
+            background: rgba(10,11,18,0.97);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.65rem 1.25rem;
+            border-radius: 100px;
+            font-weight: 600; font-size: 0.82rem;
+            z-index: 60;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            transition: transform 0.22s var(--ease);
+            display: flex; align-items: center; gap: 0.5rem;
+            pointer-events: none;
+            max-width: 80vw;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .toast.visible { transform: translate(-50%, 0); }
+        .toast.ok { border-color: rgba(16,185,129,0.3); }
+        .toast.warn { border-color: rgba(245,158,11,0.3); }
+        .toast.err { border-color: rgba(239,68,68,0.35); }
+
+        /* ===== LOADING STATE ===== */
+        .loading-bars {
+            display: flex; gap: 4px; align-items: center; justify-content: center;
+            padding: 4rem; grid-column: 1/-1;
+        }
+        .loading-bars span {
+            width: 3px; height: 24px; background: var(--accent);
+            border-radius: 2px;
+            animation: bar 1s ease-in-out infinite;
+        }
+        .loading-bars span:nth-child(2) { animation-delay: 0.15s; }
+        .loading-bars span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bar {
+            0%, 100% { transform: scaleY(0.4); opacity: 0.4; }
+            50% { transform: scaleY(1); opacity: 1; }
+        }
+
+        /* ===== SETTINGS DIALOG (for future) ===== */
+        .kbd {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.1);
+            margin: 0 2px;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="atv-container" id="app">
+
+    <!-- ===== VIDEO PLAYER LAYER ===== -->
+    <div class="video-viewport" id="viewport">
+        <video id="video" autoplay playsinline></video>
+        <div class="buffer-spinner" id="spinner"></div>
+
+        <div class="stream-error" id="stream-err">
+            <svg class="stream-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <h3>Stream Unavailable</h3>
+            <p id="stream-err-msg">This channel could not be loaded. Try another channel or check your connection.</p>
+            <button onclick="JStar.closeError()" style="margin-top:0.5rem;padding:0.6rem 1.2rem;background:var(--accent);border:none;color:var(--bg-base);font-weight:700;border-radius:8px;cursor:pointer;font-family:inherit;">Press Back to Return</button>
+        </div>
+
+        <!-- Quick Zap Drawer -->
+        <div class="quick-drawer" id="quick-drawer">
+            <div class="quick-header">
+                <span>Quick Zap</span>
+                <span class="quick-count" id="quick-count">0 ch</span>
+            </div>
+            <div class="quick-list" id="quick-list"></div>
+        </div>
+
+        <!-- Player OSD -->
+        <div class="osd-overlay" id="osd">
+            <div class="osd-top">
+                <div></div>
+                <div class="osd-time" id="osd-clock">00:00</div>
+            </div>
+
+            <div class="osd-epg">
+                <div class="osd-epg-live">
+                    <span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;animation:pulse 1.2s infinite;"></span>
+                    LIVE NOW
+                </div>
+                <div class="osd-epg-title" id="osd-epg-title">—</div>
+                <div class="osd-epg-meta">
+                    <span id="osd-epg-time">0:00 - 0:00</span>
+                    <span>•</span>
+                    <span id="osd-epg-prog">—</span>
+                </div>
+                <div class="epg-progress-wrap">
+                    <div class="epg-progress-fill" id="osd-epg-fill"></div>
+                </div>
+                <div class="osd-epg-next">Next: <strong id="osd-epg-next">—</strong></div>
+            </div>
+
+            <div class="osd-bottom">
+                <div class="osd-info">
+                    <div class="osd-logo"><img id="osd-logo-img" alt=""></div>
+                    <div class="osd-meta">
+                        <div class="osd-title" id="osd-title">—</div>
+                        <div class="osd-group" id="osd-group">—</div>
+                    </div>
+                </div>
+                <div class="osd-stats" id="osd-stats">
+                    <span class="pill">CH <strong id="osd-ch">01</strong></span>
+                    <span class="pill ok">RES <strong id="osd-res">—</strong></span>
+                    <span class="pill">BUF <strong id="osd-buf">0.0s</strong></span>
+                    <span class="pill warn">DRM <strong id="osd-drm">—</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== LAUNCHER UI ===== -->
+    <div class="ui-shield" id="shield">
+
+        <aside class="sidebar" id="sidebar">
+            <div class="logo-box">
+                <div class="logo-mark">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </div>
+                <div>
+                    <h2>JStar Pro</h2>
+                    <small>Premium ATV</small>
+                </div>
+            </div>
+
+            <div class="search-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="search-input" id="search" placeholder="Search channels…" autocomplete="off" spellcheck="false">
+                <button class="search-clear" id="search-clear" aria-label="Clear">✕</button>
+            </div>
+
+            <div class="menu-section" id="nav-menu">
+                <div class="menu-title">Quick Access</div>
+                <div class="menu-item" data-nav="all">
+                    <span><span class="menu-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    </span>All Channels</span>
+                    <span class="menu-count" id="cnt-all">0</span>
+                </div>
+                <div class="menu-item" data-nav="favorites">
+                    <span><span class="menu-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="16" height="16"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </span>Favorites</span>
+                    <span class="menu-count" id="cnt-fav">0</span>
+                </div>
+                <div class="menu-item" data-nav="recent">
+                    <span><span class="menu-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </span>Recent</span>
+                    <span class="menu-count" id="cnt-recent">0</span>
+                </div>
+            </div>
+
+            <div class="menu-section" id="cat-menu">
+                <div class="menu-title">Categories</div>
+                <!-- filled dynamically -->
+            </div>
+
+            <div class="color-legend">
+                <div class="ck"><span class="dot-red">●</span> OSD/Stats</div>
+                <div class="ck"><span class="dot-green">●</span> Quick Zap</div>
+                <div class="ck"><span class="dot-yellow">●</span> Play/Pause</div>
+                <div class="ck"><span class="dot-blue">●</span> Back/Close</div>
+                <div class="ck"><span class="star">★</span> Favorite</div>
+                <div class="ck"><span class="kbd" style="margin:0">0-9</span> Jump</div>
+            </div>
+        </aside>
+
+        <main class="workspace">
+            <header class="top-bar">
+                <div class="top-left">
+                    <h3 id="group-title">All Channels</h3>
+                    <div class="sub" id="group-sub">Loading library…</div>
+                </div>
+                <div class="top-right">
+                    <div class="status-dot" id="status-dot" title="Connected"></div>
+                    <div class="clock">
+                        <div id="clock-time">00:00 AM</div>
+                        <div class="date" id="clock-date">—</div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="epg-card" id="epg-card">
+                <div class="epg-now">
+                    <div class="epg-live-badge"><span class="live-dot"></span> ON NOW</div>
+                    <div class="epg-now-title" id="epg-title">Loading program guide…</div>
+                    <div class="epg-now-meta">
+                        <span class="epg-ch-badge" id="epg-ch">CH 01</span>
+                        <span id="epg-time">0:00 - 0:00</span>
+                        <span id="epg-chan-name" style="color:var(--text-main);font-weight:600;">—</span>
+                    </div>
+                    <div class="epg-progress-wrap">
+                        <div class="epg-progress-fill" id="epg-fill"></div>
+                    </div>
+                </div>
+                <div class="epg-next">
+                    <div class="epg-next-label">Up Next</div>
+                    <div class="epg-next-title" id="epg-next">—</div>
+                    <div class="epg-next-time" id="epg-next-time">—</div>
+                </div>
+            </div>
+
+            <div class="channel-area" id="channel-area">
+                <div class="grid" id="grid">
+                    <div class="loading-bars"><span></span><span></span><span></span></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="numeric-box" id="numeric-box">
+        <div class="num-label">Tuning</div>
+        <div class="num-digits" id="num-digits">–</div>
+        <div class="num-name" id="num-name">—</div>
+    </div>
+
+    <div class="volume-hud" id="vol-hud">
+        <div class="vol-icon" id="vol-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+        </div>
+        <div class="vol-bar"><div class="vol-fill" id="vol-fill"></div></div>
+        <div class="vol-text" id="vol-text">50%</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* =========================================================================
+ * JStar Pro Premium ATV Launcher — Refactored Engine
+ *   + Bug fixes (nav math, proxied URL double-proxy, buffer stats API,
+ *                logo onerror escape, autoplay unmute, 404 EPG spam, etc.)
+ *   + New features: search, favorites (localStorage), recent history,
+ *                   last-channel resume, proper loading spinner, error
+ *                   overlay, WakeLock, click support, resolution labeling,
+ *                   audio track / subtitle toggles, smoother focus, toast
+ *                   system, EPG cache, queued zaps during load, etc.
+ * ========================================================================= */
+(() => {
+    'use strict';
+
+    const PLAYLIST_URL = '/api/playlist';
+    const EPG_CACHE_TTL = 5 * 60 * 1000;
+    const NUMERIC_TIMEOUT_MS = 1100;
+    const OSD_TIMEOUT_MS = 5000;
+    const TOAST_TIMEOUT_MS = 3200;
+    const CARD_W_PLUS_GAP = 220 + 16; // card-w 220px + 16px gap
+
+    /* ---------- state ---------- */
+    const LS_KEY = 'jstar_premium_v1';
+    const settings = Object.assign({
+        volume: 50,
+        favorites: [],
+        recent: [],
+        lastChannelId: null
+    }, JSON.parse(localStorage.getItem(LS_KEY) || '{}'));
+
+    const state = {
+        channels: [],
+        filtered: [],
+        categories: [],
+        activeView: 'all',        // 'all' | 'favorites' | 'recent' | '<category>'
+        searchQuery: '',
+        zone: 'channels',         // sidebar | channels | player | player_drawer | search
+        focusedNavIdx: 0,
+        focusedCatIdx: 0,
+        focusedChanIdx: 0,
+        focusedQuickIdx: 0,
+        activeChannelId: null,
+        player: null,
+        loading: false,
+        queuedChannel: null,
+        wakeLock: null,
+        osdTimer: null,
+        statsTimer: null,
+        epgTimer: null,
+        clockTimer: null,
+        numBuf: '',
+        numTimer: null,
+        volTimer: null,
+        toastTimer: null,
+        epgCache: new Map(),
+        activeAudioTrack: 0,
+        textTrackVisible: false
+    };
+
+    /* ---------- DOM ---------- */
+    const $ = id => document.getElementById(id);
+    const dom = {
+        video: $('video'), viewport: $('viewport'), spinner: $('spinner'),
+        streamErr: $('stream-err'), streamErrMsg: $('stream-err-msg'),
+        quickDrawer: $('quick-drawer'), quickList: $('quick-list'), quickCount: $('quick-count'),
+        osd: $('osd'), osdClock: $('osd-clock'),
+        osdEpgTitle: $('osd-epg-title'), osdEpgTime: $('osd-epg-time'), osdEpgProg: $('osd-epg-prog'),
+        osdEpgFill: $('osd-epg-fill'), osdEpgNext: $('osd-epg-next'),
+        osdLogo: $('osd-logo-img'), osdTitle: $('osd-title'), osdGroup: $('osd-group'),
+        osdCh: $('osd-ch'), osdRes: $('osd-res'), osdBuf: $('osd-buf'), osdDrm: $('osd-drm'),
+        shield: $('shield'), sidebar: $('sidebar'), search: $('search'), searchClear: $('search-clear'),
+        navMenu: $('nav-menu'), catMenu: $('cat-menu'),
+        groupTitle: $('group-title'), groupSub: $('group-sub'),
+        clockTime: $('clock-time'), clockDate: $('clock-date'),
+        epgTitle: $('epg-title'), epgCh: $('epg-ch'), epgTime: $('epg-time'),
+        epgChanName: $('epg-chan-name'), epgFill: $('epg-fill'),
+        epgNext: $('epg-next'), epgNextTime: $('epg-next-time'),
+        grid: $('grid'), channelArea: $('channel-area'),
+        numBox: $('numeric-box'), numDigits: $('num-digits'), numName: $('num-name'),
+        volHud: $('vol-hud'), volIcon: $('vol-icon'), volFill: $('vol-fill'), volText: $('vol-text'),
+        toast: $('toast')
+    };
+
+    /* ---------- utils ---------- */
+    const save = () => localStorage.setItem(LS_KEY, JSON.stringify(settings));
+    const fmtChNum = n => String(n).padStart(2, '0');
+    const globalNum = ch => state.channels.indexOf(ch) + 1;
+    const findCh = id => state.channels.find(c => c.id === id);
+
+    function resLabel(w, h) {
+        if (!w || !h) return '—';
+        const tall = h >= w ? h : w;
+        if (tall >= 3500) return '4K UHD';
+        if (tall >= 1800) return '1080p HD';
+        if (tall >= 1200) return '720p';
+        if (tall >= 700)  return 'SD';
+        return `${w}×${h}`;
+    }
+
+    function toast(msg, type = '') {
+        dom.toast.className = 'toast visible' + (type ? ' ' + type : '');
+        dom.toast.textContent = msg;
+        clearTimeout(state.toastTimer);
+        state.toastTimer = setTimeout(() => dom.toast.classList.remove('visible'), TOAST_TIMEOUT_MS);
+    }
+
+    function isProxiedUrl(u) {
+        // URLs that are already going through the project's proxy — don't double-wrap them
+        return /fan\.kaizokutv\.me|\/api\/proxy\?/.test(u);
+    }
+
+    function currentColCount() {
+        const w = dom.grid.parentElement.clientWidth - 8; // subtract scrollbar gap
+        return Math.max(1, Math.floor((w + 16) / CARD_W_PLUS_GAP));
+    }
+
+    /* ---------- clock ---------- */
+    function updateClock() {
+        const d = new Date();
+        let h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+        const ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        const pad = n => String(n).padStart(2, '0');
+        const timeStr = `${h}:${pad(m)} ${ap}`;
+        dom.clockTime.textContent = timeStr;
+        dom.osdClock.textContent = `${h}:${pad(m)}:${pad(s)}`;
+        const dateStr = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        dom.clockDate.textContent = dateStr;
+    }
+
+    /* ---------- EPG (graceful: try server, fall back to mock) ---------- */
+    const EPG_TITLES = {
+        news: [
+            ['Prime Time Bulletin','Late Night World Brief'],['Morning Headlines','Business Hour Live'],
+            ['Breaking Desk','Weather & Traffic Update'],['Regional Roundup','Parliament Live']
+        ],
+        ent: [
+            ['Mega Serial Blockbuster','Late Night Premiere Cinema'],['Reality Grand Finale','Comedy Nights Special'],
+            ['Celebrity Talk Show','Award Show Highlights'],['Daily Soap Opera','Weekend Movie Triple']
+        ],
+        movies: [
+            ['Blockbuster Matinee','Late Night Action Cinema'],['Romantic Classic','Cult Horror Theater'],
+            ['Comedy Marathon','Bollywood Premiere'],['Hollywood Hit','Regional Cinema Night']
+        ],
+        music: [
+            ['Retro 90s Pop Anthems','Club Videomix'],['Morning Chill Beats','Indie Discovery Hour'],
+            ['Top 40 Countdown','Classic Rock Block'],['Bhangra Beats','Devotional Melodies']
+        ],
+        sports: [
+            ['Live Pre-Match Analysis','Match Kickoff'],['Cricket Live','Post-Match Wrap'],
+            ['Football Highlights','WWE Raw Live'],['Sports Talk','Championship Replay']
+        ],
+        kids: [
+            ['SpongeBob SquarePants','Shin Chan New Episode'],['Cartoon Movie Time','Tom & Jerry Block'],
+            ['Paw Patrol','Educational Kids Hour'],['Anime Block','Sesame Street']
+        ],
+        devo: [
+            ['Morning Aarti Live','Spiritual Discourse'],['Bhakti Geet','Pravachan Special'],
+            ['Gurbani Live','Ramayan Katha'],['Devotional Songs','Evening Prayers']
+        ],
+        bengali: [
+            ['Kolkata Superhit Serial','Khela Hobe Sports Talk'],['Bangla Cinema Premiere','Adhunik Gaan'],
+            ['Rabindra Sangeet','News at 9'],['Mahalaya Special','Tollywood Talkies']
+        ]
+    };
+
+    function mockEPGFor(ch) {
+        const now = new Date();
+        const h = now.getHours(), m = now.getMinutes();
+        let hash = 0;
+        for (let i = 0; i < ch.name.length; i++) hash = ch.name.charCodeAt(i) + ((hash << 5) - hash);
+        hash = Math.abs(hash);
+
+        // Pick category pool
+        const g = ch.group.toLowerCase();
+        let pool = EPG_TITLES.ent;
+        if (/news|business/i.test(g)) pool = EPG_TITLES.news;
+        else if (/movie|ktv|cinema/i.test(g)) pool = EPG_TITLES.movies;
+        else if (/music|sangeet|surya music|gemini music/i.test(g)) pool = EPG_TITLES.music;
+        else if (/sport/i.test(g)) pool = EPG_TITLES.sports;
+        else if (/kid|chutti|kochu|chintu|cartoon|nick|sonic|pogo|yay/i.test(g)) pool = EPG_TITLES.kids;
+        else if (/devot|bhakti|dharma/i.test(g)) pool = EPG_TITLES.devo;
+        else if (/bengla|bangla|assam/i.test(g)) pool = EPG_TITLES.bengali;
+
+        const idx = (hash + h) % pool.length;
+        const [current, next] = pool[idx];
+        const fmtT = hr => {
+            const ap = hr >= 12 ? 'PM' : 'AM';
+            const hh = hr % 12 || 12;
+            return `${hh}:00 ${ap}`;
+        };
+        const startH = h, endH = (h + 1) % 24;
+        return {
+            current, next,
+            timeRange: `${fmtT(startH)} - ${fmtT(endH)}`,
+            nextStart: fmtT(endH),
+            percent: (m / 60) * 100
+        };
+    }
+
+    async function getEPG(ch) {
+        if (!ch) return mockEPGFor({name:'',group:''});
+        const k = ch.tvg_id || ch.id;
+        const cached = state.epgCache.get(k);
+        if (cached && Date.now() - cached.t < EPG_CACHE_TTL) return cached.v;
+
+        // Server endpoints aren't present on static Render; try gracefully but don't spam.
+        // (If you later deploy an EPG backend at /api/epg, it will Just Work—cached for 5min.)
+        try {
+            if (ch.tvg_id) {
+                const r = await fetch(`/api/epg?tvg_id=${ch.tvg_id}`, { cache: 'no-store' });
+                if (r.ok) {
+                    const data = await r.json();
+                    const now = Date.now();
+                    const start = new Date(data.current.start).getTime();
+                    const stop = new Date(data.current.stop).getTime();
+                    const pct = stop > start ? Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100)) : 0;
+                    const fmt = t => {
+                        const d = new Date(t);
+                        return `${(d.getHours()%12)||12}:${String(d.getMinutes()).padStart(2,'0')} ${d.getHours()>=12?'PM':'AM'}`;
+                    };
+                    const v = {
+                        current: data.current.title,
+                        next: (data.next && data.next.title) || 'JStar Programming',
+                        timeRange: `${fmt(data.current.start)} - ${fmt(data.current.stop)}`,
+                        nextStart: data.next ? fmt(data.next.start) : '',
+                        percent: pct
+                    };
+                    state.epgCache.set(k, { t: Date.now(), v });
+                    return v;
+                }
+            }
+        } catch (e) { /* offline/404 — fall through */ }
+
+        const v = mockEPGFor(ch);
+        state.epgCache.set(k, { t: Date.now(), v });
+        return v;
+    }
+
+    async function refreshEPG(ch) {
+        if (!ch) return;
+        const epg = await getEPG(ch);
+        const gn = globalNum(ch);
+        const gnStr = fmtChNum(gn);
+        const dispCh = `CH ${gnStr}`;
+
+        // In-grid EPG card
+        epgTitle.textContent = epg.current;
+        epgCh.textContent = dispCh;
+        epgTime.textContent = epg.timeRange;
+        epgChanName.textContent = ch.name;
+        epgFill.style.width = epg.percent + '%';
+        epgNext.textContent = epg.next;
+        epgNextTime.textContent = epg.nextStart;
+
+        // Player OSD EPG
+        osdEpgTitle.textContent = epg.current;
+        osdEpgTime.textContent = epg.timeRange;
+        osdEpgNext.textContent = epg.next;
+        osdEpgFill.style.width = epg.percent + '%';
+    }
+
+    /* ---------- Player (Shaka) ---------- */
+    async function initPlayer() {
+        if (typeof shaka === 'undefined') {
+            setTimeout(initPlayer, 500); return;
+        }
+        shaka.polyfill.installAll();
+        const p = new shaka.Player(dom.video);
+        p.configure({
+            streaming: {
+                bufferingGoal: 30,
+                rebufferingGoal: 2,
+                bufferBehind: 60,
+                ignoreTextStreamFailures: true,
+                jumpLargeGaps: true,
+                stallEnabled: true,
+                stallSkip: 0.1
+            },
+            abr: { enabled: true, defaultBandwidthEstimate: 2500000 }
+        });
+
+        p.getNetworkingEngine().registerRequestFilter((type, req) => {
+            const ch = findCh(dom.video.dataset.activeId);
+            if (ch && ch.headers) {
+                if (ch.headers.Cookie)     req.headers['Cookie'] = ch.headers.Cookie;
+                if (ch.headers['User-Agent']) req.headers['User-Agent'] = ch.headers['User-Agent'];
+                if (ch.headers['Referer'])    req.headers['Referer'] = ch.headers['Referer'];
+            }
+            // Only proxy if URL is NOT already going through our proxy and is not https to same origin
+            const orig = req.uris[0];
+            if (!isProxiedUrl(orig) && window.location.protocol.startsWith('http') &&
+                !orig.startsWith(window.location.origin) &&
+                /^https?:/.test(orig)) {
+                req.uris[0] = `${window.location.origin}/api/proxy?url=${encodeURIComponent(orig)}`;
+            }
+        });
+
+        p.addEventListener('error', ev => {
+            const e = ev.detail;
+            console.error('[Shaka]', e);
+            // Don't show error for non-fatal (1=key,2=player) minor
+            if (e.severity === shaka.util.Error.Severity.CRITICAL) {
+                showStreamError(e);
+            }
+        });
+        p.addEventListener('buffering', ev => {
+            dom.spinner.classList.toggle('visible', ev.buffering);
+        });
+        p.addEventListener('trackschanged', () => {
+            // Update resolution label once tracks are known
+            setTimeout(updateStreamStats, 200);
+        });
+
+        dom.video.addEventListener('waiting', () => dom.spinner.classList.add('visible'));
+        dom.video.addEventListener('playing', () => {
+            dom.spinner.classList.remove('visible');
+            hideStreamError();
+        });
+        dom.video.addEventListener('volumechange', () => {
+            settings.volume = Math.round(dom.video.volume * 100);
+            renderVolume();
+            save();
+        });
+        dom.video.addEventListener('ended', () => { /* live streams don't end */ });
+        dom.video.addEventListener('error', () => {
+            if (dom.video.error && dom.video.error.code !== 4) {
+                showStreamError(dom.video.error);
+            }
+        });
+
+        state.player = p;
+        return p;
+    }
+
+    function configureDrm(ch) {
+        const hasLicenseUrl = typeof ch.license_key === 'string' && ch.license_key.startsWith('http');
+        const hasCk = ch.clearKeys && Object.keys(ch.clearKeys).length > 0;
+        const cfg = { drm: { clearKeys: {}, servers: {} } };
+
+        if (hasLicenseUrl) {
+            let url = ch.license_key;
+            if (window.location.protocol.startsWith('http') && !isProxiedUrl(url)) {
+                url = `${window.location.origin}/api/proxy?url=${encodeURIComponent(ch.license_key)}`;
+            }
+            cfg.drm.servers = {
+                'org.w3.clearkey': url,
+                'com.widevine.alpha': url,
+                'com.microsoft.playready': url
+            };
+        } else if (hasCk) {
+            const toHex = b64url => {
+                let b = b64url.replace(/-/g, '+').replace(/_/g, '/');
+                while (b.length % 4) b += '=';
+                try {
+                    const bin = atob(b);
+                    let hex = '';
+                    for (let i = 0; i < bin.length; i++) {
+                        const h = bin.charCodeAt(i).toString(16);
+                        hex += h.length === 1 ? '0' + h : h;
+                    }
+                    return hex;
+                } catch { return b64url; }
+            };
+            const out = {};
+            for (const [k, v] of Object.entries(ch.clearKeys)) {
+                const kk = (k.length === 22 || /[-_]/.test(k)) ? toHex(k) : k.replace(/[^a-fA-F0-9]/g, '').toLowerCase();
+                const kv = (v.length === 22 || /[-_]/.test(v)) ? toHex(v) : v.replace(/[^a-fA-F0-9]/g, '').toLowerCase();
+                if (kk && kv && kk.length === 32 && kv.length === 32) out[kk] = kv;
+            }
+            cfg.drm.clearKeys = out;
+        }
+        state.player.configure(cfg);
+        return hasLicenseUrl || hasCk;
+    }
+
+    async function playChannel(ch) {
+        if (!ch || !state.player) return;
+
+        // If a load is already in flight, queue this one (don't just drop it!)
+        if (state.loading) { state.queuedChannel = ch; return; }
+
+        state.loading = true;
+        state.queuedChannel = null;
+        dom.spinner.classList.add('visible');
+        hideStreamError();
+
+        const isResume = ch.id === state.activeChannelId;
+
+        dom.video.dataset.activeId = ch.id;
+        dom.viewport.classList.add('active');
+        dom.shield.classList.add('hidden');
+        state.zone = 'player';
+
+        // OSD text
+        osdTitle.textContent = ch.name;
+        osdGroup.textContent = ch.group;
+        osdLogo.src = ch.logo || '';
+        osdLogo.onerror = () => { osdLogo.style.display = 'none'; };
+        osdLogo.onload = () => { osdLogo.style.display = ''; };
+        osdCh.textContent = fmtChNum(globalNum(ch));
+        osdRes.textContent = '…';
+        osdBuf.textContent = '0.0s';
+        const hasDrm = configureDrm(ch);
+        osdDrm.textContent = ch.license_key && ch.license_key.startsWith('http') ? 'License Server' :
+                              hasDrm ? 'ClearKey' : 'Clear';
+
+        // Add to recent & persist last
+        state.activeChannelId = ch.id;
+        settings.lastChannelId = ch.id;
+        settings.recent = [ch.id, ...settings.recent.filter(x => x !== ch.id)].slice(0, 20);
+        save();
+
+        // Mark active card
+        document.querySelectorAll('.card.active').forEach(el => el.classList.remove('active'));
+        const card = document.querySelector(`.card[data-id="${ch.id}"]`);
+        if (card) card.classList.add('active');
+
+        refreshEPG(ch);
+
+        let mime = null;
+        if (/\.mpd(\?|$)/.test(ch.url)) mime = 'application/dash+xml';
+        else if (/\.m3u8(\?|$)/.test(ch.url)) mime = 'application/x-mpegurl';
+
+        try {
+            await state.player.unload();
+            await state.player.load(ch.url, null, mime);
+            dom.video.volume = settings.volume / 100;
+            dom.video.muted = false;
+
+            try { await dom.video.play(); }
+            catch (err) {
+                // Browser autoplay policy; mute and retry
+                dom.video.muted = true;
+                await dom.video.play();
+                toast('Autoplay blocked — press Vol+ to unmute', 'warn');
+            }
+
+            startStats();
+            showOSD();
+            requestWakeLock();
+        } catch (e) {
+            console.error('[Play] failed:', e);
+            showStreamError(e);
+        } finally {
+            state.loading = false;
+            dom.spinner.classList.remove('visible');
+            // Flush queued zap
+            if (state.queuedChannel) {
+                const q = state.queuedChannel; state.queuedChannel = null;
+                setTimeout(() => playChannel(q), 30);
+            }
+        }
+    }
+
+    function showStreamError(e) {
+        dom.spinner.classList.remove('visible');
+        let msg = 'This stream is currently unavailable. Try another channel.';
+        if (e && e.code) {
+            const map = {
+                1001: 'The request failed (network/CORS).',
+                1002: 'Cannot reach the streaming server.',
+                3016: 'The requested quality is unavailable.',
+                4012: 'DRM restriction: license server refused.',
+                6001: 'Could not load media manifest.',
+                7000: 'Player load error (wrong URL or blocked).'
+            };
+            if (map[e.code]) msg = map[e.code];
+            msg += ` (err ${e.code})`;
+        }
+        dom.streamErrMsg.textContent = msg;
+        dom.streamErr.classList.add('visible');
+    }
+    function hideStreamError() { dom.streamErr.classList.remove('visible'); }
+
+    function closePlayer() {
+        if (state.statsTimer) { clearInterval(state.statsTimer); state.statsTimer = null; }
+        if (state.player) { state.player.unload().catch(() => {}); }
+        dom.viewport.classList.remove('active');
+        dom.shield.classList.remove('hidden');
+        hideQuickDrawer();
+        hideStreamError();
+        dom.spinner.classList.remove('visible');
+        state.zone = 'channels';
+        updateFocus();
+        releaseWakeLock();
+    }
+
+    JStar.closeError = closePlayer; // referenced by inline button
+
+    /* ---------- live stats ---------- */
+    function startStats() {
+        if (state.statsTimer) clearInterval(state.statsTimer);
+        state.statsTimer = setInterval(updateStreamStats, 1000);
+    }
+    function updateStreamStats() {
+        if (!state.player || !dom.viewport.classList.contains('active')) return;
+        // Shaka getStats() is the correct modern API (not getBufferInfo)
+        const st = state.player.getStats ? state.player.getStats() : {};
+        const w = dom.video.videoWidth, h = dom.video.videoHeight;
+        osdRes.textContent = resLabel(w, h);
+        // Compute forward buffer from video.buffered
+        let ahead = 0;
+        try {
+            const t = dom.video.currentTime;
+            const b = dom.video.buffered;
+            for (let i = 0; i < b.length; i++) {
+                if (b.start(i) <= t && t <= b.end(i)) { ahead = b.end(i) - t; break; }
+            }
+        } catch {}
+        osdBuf.textContent = `${ahead.toFixed(1)}s`;
+    }
+
+    /* ---------- OSD ---------- */
+    function showOSD() {
+        dom.osd.classList.add('visible');
+        clearTimeout(state.osdTimer);
+        state.osdTimer = setTimeout(() => dom.osd.classList.remove('visible'), OSD_TIMEOUT_MS);
+    }
+
+    /* ---------- Quick drawer ---------- */
+    function showQuickDrawer() {
+        // Show ALL channels in quick zap (not just filtered) — matches real TV quick-list UX
+        const list = state.channels;
+        renderQuickList(list);
+        state.focusedQuickIdx = list.findIndex(c => c.id === state.activeChannelId);
+        if (state.focusedQuickIdx < 0) state.focusedQuickIdx = 0;
+        dom.quickDrawer.classList.add('visible');
+        state.zone = 'player_drawer';
+        updateFocus();
+    }
+    function hideQuickDrawer() {
+        dom.quickDrawer.classList.remove('visible');
+        if (state.zone === 'player_drawer') state.zone = 'player';
+    }
+    function renderQuickList(list) {
+        dom.quickList.innerHTML = '';
+        dom.quickCount.textContent = `${list.length} ch`;
+        const frag = document.createDocumentFragment();
+        list.forEach((c, i) => {
+            const d = document.createElement('div');
+            d.className = 'quick-item' + (c.id === state.activeChannelId ? ' active' : '');
+            d.dataset.idx = i;
+            const fav = settings.favorites.includes(c.id)
+                ? '<svg class="fav-star-mini" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+                : '';
+            const img = c.logo ? `<img src="${c.logo}" alt="" loading="lazy">` : '';
+            d.innerHTML = `
+                <div class="quick-details">${img}<span class="quick-name">${escapeHtml(c.name)}</span>${fav}</div>
+                <div class="quick-num">${fmtChNum(globalNum(c))}</div>`;
+            d.addEventListener('click', () => playChannel(c));
+            frag.appendChild(d);
+        });
+        dom.quickList.appendChild(frag);
+    }
+
+    /* ---------- Volume ---------- */
+    function changeVolume(delta) {
+        const newVol = Math.max(0, Math.min(100, settings.volume + delta));
+        dom.video.muted = false;
+        dom.video.volume = newVol / 100;
+        settings.volume = newVol;
+        save();
+        renderVolume();
+        dom.volHud.classList.add('visible');
+        clearTimeout(state.volTimer);
+        state.volTimer = setTimeout(() => dom.volHud.classList.remove('visible'), 1800);
+    }
+    function renderVolume() {
+        const v = settings.volume;
+        dom.volFill.style.width = v + '%';
+        dom.volText.textContent = v + '%';
+        // Update icon
+        let svg;
+        if (v === 0) {
+            svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+        } else if (v < 40) {
+            svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+        } else {
+            svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+        }
+        dom.volIcon.innerHTML = svg;
+    }
+
+    /* ---------- Numeric zap ---------- */
+    function handleDigit(d) {
+        state.numBuf += d;
+        const target = parseInt(state.numBuf, 10) - 1;
+        const match = target >= 0 && target < state.filtered.length ? state.filtered[target] : null;
+        dom.numDigits.textContent = state.numBuf;
+        dom.numName.textContent = match ? match.name : '—';
+        dom.numBox.classList.add('visible');
+
+        clearTimeout(state.numTimer);
+        state.numTimer = setTimeout(() => {
+            const n = parseInt(state.numBuf, 10) - 1;
+            state.numBuf = '';
+            dom.numBox.classList.remove('visible');
+            if (n >= 0 && n < state.filtered.length) {
+                state.focusedChanIdx = n;
+                updateFocus();
+                if (state.zone === 'player' || state.zone === 'player_drawer') {
+                    playChannel(state.filtered[n]);
+                } else {
+                    playChannel(state.filtered[n]);
+                }
+            } else {
+                toast(`Channel ${n + 1} not found in this view`, 'warn');
+            }
+        }, NUMERIC_TIMEOUT_MS);
+    }
+
+    /* ---------- WakeLock ---------- */
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator && !state.wakeLock) {
+                state.wakeLock = await navigator.wakeLock.request('screen');
+                state.wakeLock.addEventListener('release', () => { state.wakeLock = null; });
+            }
+        } catch {}
+    }
+    function releaseWakeLock() {
+        if (state.wakeLock) { state.wakeLock.release().catch(() => {}); state.wakeLock = null; }
+    }
+    // Re-acquire on visibility change
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && state.zone === 'player') requestWakeLock();
+    });
+
+    /* ---------- Favorites ---------- */
+    function toggleFavorite(ch) {
+        if (!ch) return;
+        const i = settings.favorites.indexOf(ch.id);
+        if (i >= 0) { settings.favorites.splice(i, 1); toast(`Removed ${ch.name} from favorites`); }
+        else { settings.favorites.push(ch.id); toast(`Added ${ch.name} to favorites ★`, 'ok'); }
+        save();
+        if (state.activeView === 'favorites') applyFilter();
+        renderCategories();
+    }
+
+    /* ---------- Filter / Render ---------- */
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        }[c]));
+    }
+    function getFilteredList() {
+        let list;
+        if (state.searchQuery) {
+            const q = state.searchQuery.toLowerCase().trim();
+            list = state.channels.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                c.group.toLowerCase().includes(q)
+            );
+        } else if (state.activeView === 'favorites') {
+            list = state.channels.filter(c => settings.favorites.includes(c.id));
+        } else if (state.activeView === 'recent') {
+            list = settings.recent.map(id => findCh(id)).filter(Boolean);
+        } else if (state.activeView === 'all') {
+            list = state.channels.slice();
+        } else {
+            list = state.channels.filter(c => c.group === state.activeView);
+        }
+        return list;
+    }
+
+    function applyFilter() {
+        state.filtered = getFilteredList();
+        state.focusedChanIdx = Math.min(state.focusedChanIdx, Math.max(0, state.filtered.length - 1));
+        renderGrid();
+        updateHeader();
+        updateFocus();
+    }
+
+    function updateHeader() {
+        let title, sub;
+        if (state.searchQuery) {
+            title = `Search: "${state.searchQuery}"`;
+            sub = `${state.filtered.length} channel${state.filtered.length === 1 ? '' : 's'} found`;
+        } else if (state.activeView === 'all') {
+            title = 'All Channels';
+            sub = `${state.channels.length} channels • ${state.categories.length} categories`;
+        } else if (state.activeView === 'favorites') {
+            title = '★ Favorites';
+            sub = `${settings.favorites.length} saved`;
+        } else if (state.activeView === 'recent') {
+            title = 'Recent';
+            sub = 'Last 20 channels';
+        } else {
+            title = state.activeView;
+            sub = `${state.filtered.length} channels`;
+        }
+        dom.groupTitle.textContent = title;
+        dom.groupSub.textContent = sub;
+    }
+
+    function renderCategories() {
+        // Count channels per group
+        const groupCounts = {};
+        for (const c of state.channels) groupCounts[c.group] = (groupCounts[c.group] || 0) + 1;
+        const cats = Object.entries(groupCounts).sort((a,b) => b[1] - a[1]);
+        state.categories = cats.map(([g]) => g);
+
+        // Quick-access counts
+        $('cnt-all').textContent = state.channels.length;
+        $('cnt-fav').textContent = settings.favorites.length;
+        $('cnt-recent').textContent = Math.min(settings.recent.length, 20);
+
+        const frag = document.createDocumentFragment();
+        cats.forEach(([cat, n]) => {
+            const item = document.createElement('div');
+            item.className = 'menu-item';
+            item.dataset.cat = cat;
+            item.innerHTML = `<span>${escapeHtml(cat)}</span><span class="menu-count">${n}</span>`;
+            frag.appendChild(item);
+        });
+        dom.catMenu.innerHTML = '<div class="menu-title">Categories</div>' + frag.outerHTML || '';
+        // Above line was wrong; redo properly:
+        dom.catMenu.innerHTML = '<div class="menu-title">Categories</div>';
+        dom.catMenu.appendChild(frag);
+
+        bindMenuClicks();
+    }
+
+    function renderGrid() {
+        const frag = document.createDocumentFragment();
+        if (state.filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            if (state.searchQuery) {
+                empty.innerHTML = `
+                    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <h3>No channels match "${escapeHtml(state.searchQuery)}"</h3>
+                    <p>Try a different keyword, or press <span class="kbd">Esc</span> to clear search.</p>`;
+            } else if (state.activeView === 'favorites') {
+                empty.innerHTML = `
+                    <h3>No favorites yet</h3>
+                    <p>Hover/select a channel and press <span class="kbd">S</span> to save it here.</p>`;
+            } else {
+                empty.innerHTML = `<h3>No channels in this category</h3>`;
+            }
+            dom.grid.innerHTML = '';
+            dom.grid.appendChild(empty);
+            return;
+        }
+
+        state.filtered.forEach((c, i) => {
+            const card = document.createElement('div');
+            const isActive = c.id === state.activeChannelId;
+            const isFav = settings.favorites.includes(c.id);
+            card.className = 'atv-card card' + (isActive ? ' active' : '') + (isFav ? ' fav' : '');
+            card.dataset.idx = i;
+            card.dataset.id = c.id;
+            card.tabIndex = -1;
+
+            const gn = globalNum(c);
+            const hd = /HD|UHD|4K/i.test(c.name);
+            const isClear = !c.clearKeys || Object.keys(c.clearKeys).length === 0;
+            const drmBadge = isClear
+                ? '<span class="card-badge clear">CLEAR</span>'
+                : '<span class="card-badge drm">DRM</span>';
+
+            const logoFallback = `<div class="card-logo-fallback">${escapeHtml(c.name.slice(0,2).toUpperCase())}</div>`;
+            const logoHtml = c.logo
+                ? `<img class="card-logo" src="${c.logo}" loading="lazy" data-fb="${escapeHtml(c.name.slice(0,2).toUpperCase())}" alt="">`
+                : logoFallback;
+
+            card.innerHTML = `
+                <div class="chan-num">${fmtChNum(gn)}</div>
+                <div class="card-fav">
+                    <svg class="card-fav-star" viewBox="0 0 24 24" width="16" height="16" ${isFav ? 'fill="#fbbf24" stroke="#fbbf24"' : 'fill="none" stroke="currentColor"'} stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                </div>
+                <div class="logo-box-card" id="lb-${c.id}">${logoHtml}</div>
+                <div class="card-details">
+                    <div class="card-title">${escapeHtml(c.name)}</div>
+                    <div class="card-badge-row">
+                        ${hd ? '<span class="card-badge hd">HD</span>' : ''}
+                        ${drmBadge}
+                        <span class="card-badge">${escapeHtml(c.group.split('|').pop().trim())}</span>
+                    </div>
+                </div>`;
+            card.addEventListener('click', () => {
+                state.focusedChanIdx = i;
+                updateFocus();
+                playChannel(c);
+            });
+            card.addEventListener('mouseenter', () => {
+                if (state.zone === 'channels') { state.focusedChanIdx = i; updateFocus(); }
+            });
+            // Logo onerror — done via delegated listener below
+            frag.appendChild(card);
+        });
+        dom.grid.innerHTML = '';
+        dom.grid.appendChild(frag);
+
+        // Delegated logo error handling (no inline onerrore with escaped quotes!)
+        dom.grid.querySelectorAll('img.card-logo').forEach(img => {
+            img.addEventListener('error', () => {
+                const lb = img.parentElement;
+                const fb = img.getAttribute('data-fb') || 'TV';
+                lb.innerHTML = `<div class="card-logo-fallback">${escapeHtml(fb)}</div>`;
+            }, { once: true });
+        });
+    }
+
+    function bindMenuClicks() {
+        document.querySelectorAll('#nav-menu .menu-item').forEach((el, i) => {
+            el.addEventListener('click', () => {
+                state.activeView = el.dataset.nav;
+                state.searchQuery = '';
+                dom.search.value = '';
+                dom.searchClear.classList.remove('visible');
+                state.focusedNavIdx = i;
+                applyFilter();
+                updateMenuActive();
+            });
+        });
+        document.querySelectorAll('#cat-menu .menu-item[data-cat]').forEach(el => {
+            el.addEventListener('click', () => {
+                state.activeView = el.dataset.cat;
+                state.searchQuery = '';
+                dom.search.value = '';
+                dom.searchClear.classList.remove('visible');
+                applyFilter();
+                updateMenuActive();
+            });
+        });
+    }
+    function updateMenuActive() {
+        document.querySelectorAll('#nav-menu .menu-item').forEach(el =>
+            el.classList.toggle('active', el.dataset.nav === state.activeView));
+        document.querySelectorAll('#cat-menu .menu-item[data-cat]').forEach(el =>
+            el.classList.toggle('active', el.dataset.cat === state.activeView));
+    }
+
+    /* ---------- Focus engine ---------- */
+    function updateFocus() {
+        document.querySelectorAll('.menu-item.focused, .card.focused, .quick-item.focused')
+            .forEach(el => el.classList.remove('focused'));
+
+        if (state.zone === 'sidebar' || state.zone === 'search') {
+            const items = [...document.querySelectorAll('#nav-menu .menu-item'),
+                           ...document.querySelectorAll('#cat-menu .menu-item[data-cat]')];
+            if (items[state.focusedNavIdx]) {
+                items[state.focusedNavIdx].classList.add('focused');
+                items[state.focusedNavIdx].scrollIntoView({ block: 'nearest' });
+            }
+            if (state.zone === 'search') dom.search.focus();
+        } else if (state.zone === 'channels') {
+            const cards = dom.grid.querySelectorAll('.card');
+            if (cards[state.focusedChanIdx]) {
+                cards[state.focusedChanIdx].classList.add('focused');
+                cards[state.focusedChanIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                refreshEPG(state.filtered[state.focusedChanIdx]);
+            }
+        } else if (state.zone === 'player_drawer') {
+            const items = dom.quickList.querySelectorAll('.quick-item');
+            if (items[state.focusedQuickIdx]) {
+                items[state.focusedQuickIdx].classList.add('focused');
+                items[state.focusedQuickIdx].scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }
+
+    /* ---------- Movement helpers ---------- */
+    function moveNav(delta) {
+        const total = document.querySelectorAll('#nav-menu .menu-item').length
+                    + document.querySelectorAll('#cat-menu .menu-item[data-cat]').length;
+        state.focusedNavIdx = (state.focusedNavIdx + delta + total) % total;
+        state.zone = 'sidebar';
+        updateFocus();
+    }
+    function activateNav() {
+        const navItems = [...document.querySelectorAll('#nav-menu .menu-item')];
+        const catItems = [...document.querySelectorAll('#cat-menu .menu-item[data-cat]')];
+        const all = [...navItems, ...catItems];
+        const el = all[state.focusedNavIdx];
+        if (!el) return;
+        if (el.dataset.nav) { state.activeView = el.dataset.nav; }
+        else if (el.dataset.cat) { state.activeView = el.dataset.cat; }
+        state.searchQuery = '';
+        dom.search.value = '';
+        dom.searchClear.classList.remove('visible');
+        applyFilter();
+        updateMenuActive();
+        state.zone = 'channels';
+        state.focusedChanIdx = 0;
+        updateFocus();
+    }
+    function moveGridX(delta) {
+        const cols = currentColCount();
+        const total = state.filtered.length;
+        let n = state.focusedChanIdx + delta;
+        if (n < 0) {
+            // Jump to sidebar
+            state.zone = 'sidebar';
+            updateFocus();
+            return;
+        }
+        if (n >= total) n = total - 1;
+        state.focusedChanIdx = n;
+        updateFocus();
+    }
+    function moveGridY(delta) {
+        const cols = currentColCount();
+        const total = state.filtered.length;
+        let n = state.focusedChanIdx + (delta * cols);
+        if (n < 0) n = state.focusedChanIdx % cols; // stay in top row
+        if (n >= total) n = total - 1;
+        if (n < 0) n = 0;
+        state.focusedChanIdx = n;
+        updateFocus();
+    }
+    function moveQuickY(delta) {
+        const total = dom.quickList.querySelectorAll('.quick-item').length;
+        state.focusedQuickIdx = Math.max(0, Math.min(total - 1, state.focusedQuickIdx + delta));
+        updateFocus();
+    }
+    function activateQuick() {
+        // Quick list contains ALL channels
+        const ch = state.channels[state.focusedQuickIdx];
+        if (ch) { playChannel(ch); hideQuickDrawer(); }
+    }
+
+    /* ---------- Keyboard ---------- */
+    window.addEventListener('keydown', e => {
+        // If typing in search box
+        if (document.activeElement === dom.search) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                dom.search.blur();
+                if (state.searchQuery) {
+                    state.searchQuery = '';
+                    dom.search.value = '';
+                    dom.searchClear.classList.remove('visible');
+                    applyFilter();
+                }
+                state.zone = 'channels';
+                updateFocus();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                dom.search.blur();
+                state.zone = 'channels';
+                state.focusedChanIdx = 0;
+                updateFocus();
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                state.zone = 'channels';
+                updateFocus();
+                return;
+            }
+            // Live search as user types
+            clearTimeout(dom.search._t);
+            dom.search._t = setTimeout(() => {
+                state.searchQuery = dom.search.value.trim();
+                dom.searchClear.classList.toggle('visible', !!state.searchQuery);
+                applyFilter();
+            }, 120);
+            return;
+        }
+
+        // 0-9 numeric zap
+        if (/^[0-9]$/.test(e.key)) {
+            if (state.zone === 'sidebar' || state.zone === 'channels' || state.zone === 'player' || state.zone === 'player_drawer') {
+                handleDigit(e.key);
+                e.preventDefault();
+                return;
+            }
+        }
+
+        // Single-letter shortcuts (disabled when Ctrl/Alt/Meta)
+        const mod = e.ctrlKey || e.altKey || e.metaKey;
+        const k = e.key;
+
+        switch (k) {
+            case 'VolumeUp': case '+': case '=':
+                e.preventDefault(); changeVolume(5); break;
+            case 'VolumeDown': case '-': case '_':
+                e.preventDefault(); changeVolume(-5); break;
+            case 'VolumeMute': case 'm': case 'M':
+                e.preventDefault();
+                if (dom.video.volume > 0) {
+                    dom.video.dataset.prevVol = dom.video.volume;
+                    dom.video.volume = 0;
+                } else {
+                    dom.video.volume = parseFloat(dom.video.dataset.prevVol || '0.5');
+                }
+                renderVolume();
+                break;
+
+            case 'ChannelUp': case 'PageUp':
+                if (state.zone === 'player' || state.zone === 'player_drawer') {
+                    e.preventDefault(); channelZap(1);
+                } else if (state.zone === 'channels') {
+                    e.preventDefault(); moveGridY(-1);
+                }
+                break;
+            case 'ChannelDown': case 'PageDown':
+                if (state.zone === 'player' || state.zone === 'player_drawer') {
+                    e.preventDefault(); channelZap(-1);
+                } else if (state.zone === 'channels') {
+                    e.preventDefault(); moveGridY(1);
+                }
+                break;
+
+            // Colored keys / remote
+            case 'F1': case 'r': case 'R':
+                if (!mod) {
+                    e.preventDefault();
+                    if (state.zone === 'player' || state.zone === 'player_drawer') {
+                        showOSD();
+                        toast('OSD refreshed');
+                    }
+                }
+                break;
+            case 'F2': case 'g': case 'G':
+                if (!mod) {
+                    e.preventDefault();
+                    if (state.zone === 'player') showQuickDrawer();
+                    else if (state.zone === 'player_drawer') hideQuickDrawer();
+                }
+                break;
+            case 'F3': case 'y': case 'Y': case ' ':
+                if (!mod && (state.zone === 'player' || state.zone === 'player_drawer' || k === 'F3')) {
+                    e.preventDefault();
+                    if (dom.video.paused) { dom.video.play(); toast('Playing', 'ok'); }
+                    else { dom.video.pause(); toast('Paused'); }
+                } else if (!mod && state.zone === 'channels' && k === ' ') {
+                    e.preventDefault();
+                    playChannel(state.filtered[state.focusedChanIdx]);
+                }
+                break;
+            case 'F4': case 'b': case 'B':
+                if (!mod) {
+                    e.preventDefault();
+                    if (state.zone === 'player_drawer') hideQuickDrawer();
+                    else if (state.zone === 'player') {
+                        // Show launcher overlay over running video (like real set-top box)
+                        dom.shield.classList.remove('hidden');
+                        state.zone = 'channels';
+                        updateFocus();
+                    } else if (state.zone === 'channels') {
+                        state.zone = 'sidebar';
+                        updateFocus();
+                    }
+                }
+                break;
+
+            // Fav toggle
+            case 's': case 'S':
+                if (!mod && (state.zone === 'channels' || state.zone === 'player' || state.zone === 'player_drawer')) {
+                    e.preventDefault();
+                    const ch = state.zone === 'channels'
+                        ? state.filtered[state.focusedChanIdx]
+                        : findCh(state.activeChannelId);
+                    if (ch) toggleFavorite(ch);
+                    renderGrid();
+                    updateFocus();
+                }
+                break;
+
+            // Cycle audio tracks
+            case 'a': case 'A':
+                if (!mod && state.zone === 'player' && state.player) {
+                    e.preventDefault();
+                    const tracks = state.player.getVariantTracks().filter(t => t.audioCodec);
+                    if (tracks.length > 0) {
+                        // Simple language cycle: find next distinct language
+                        const languages = [...new Set(tracks.map(t => t.language || 'und'))];
+                        state.activeAudioTrack = (state.activeAudioTrack + 1) % languages.length;
+                        state.player.selectAudioLanguage(languages[state.activeAudioTrack]);
+                        toast(`Audio: ${languages[state.activeAudioTrack]}`);
+                    } else {
+                        toast('No alternate audio tracks');
+                    }
+                }
+                break;
+            // CC toggle
+            case 'c': case 'C':
+                if (!mod && state.zone === 'player' && state.player) {
+                    e.preventDefault();
+                    state.textTrackVisible = !state.textTrackVisible;
+                    state.player.setTextTrackVisibility(state.textTrackVisible);
+                    toast(state.textTrackVisible ? 'Subtitles on' : 'Subtitles off', 'ok');
+                }
+                break;
+
+            case 'ArrowRight':
+                e.preventDefault();
+                if (state.zone === 'sidebar') { state.zone = 'channels'; updateFocus(); }
+                else if (state.zone === 'channels') moveGridX(1);
+                else if (state.zone === 'player') showOSD();
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                if (state.zone === 'channels') {
+                    const cols = currentColCount();
+                    if (state.focusedChanIdx % cols === 0) {
+                        state.zone = 'sidebar'; updateFocus();
+                    } else {
+                        moveGridX(-1);
+                    }
+                } else if (state.zone === 'player_drawer') hideQuickDrawer();
+                else if (state.zone === 'player') showOSD();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                if (state.zone === 'sidebar') moveNav(-1);
+                else if (state.zone === 'channels') moveGridY(-1);
+                else if (state.zone === 'player') showQuickDrawer();
+                else if (state.zone === 'player_drawer') moveQuickY(-1);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                if (state.zone === 'sidebar') moveNav(1);
+                else if (state.zone === 'channels') moveGridY(1);
+                else if (state.zone === 'player') showQuickDrawer();
+                else if (state.zone === 'player_drawer') moveQuickY(1);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (state.zone === 'sidebar') activateNav();
+                else if (state.zone === 'channels') playChannel(state.filtered[state.focusedChanIdx]);
+                else if (state.zone === 'player') showOSD();
+                else if (state.zone === 'player_drawer') activateQuick();
+                break;
+
+            case 'Escape': case 'Backspace':
+                e.preventDefault();
+                if (state.zone === 'player_drawer') hideQuickDrawer();
+                else if (state.zone === 'player') {
+                    dom.shield.classList.remove('hidden');
+                    state.zone = 'channels'; updateFocus();
+                } else if (state.zone === 'channels') {
+                    if (state.searchQuery) {
+                        state.searchQuery = '';
+                        dom.search.value = '';
+                        dom.searchClear.classList.remove('visible');
+                        applyFilter();
+                    } else {
+                        state.zone = 'sidebar';
+                        updateFocus();
+                    }
+                }
+                break;
+
+            case '/':
+                e.preventDefault();
+                state.zone = 'search';
+                dom.search.focus();
+                dom.search.select();
+                break;
+
+            default:
+                // Remotes send MediaPlay etc
+                if (k === 'MediaPlay' && dom.video.paused) dom.video.play();
+                if (k === 'MediaPause' && !dom.video.paused) dom.video.pause();
+                if (k === 'MediaStop') closePlayer();
+                break;
+        }
+    });
+
+    /* Channel zap while playing */
+    function channelZap(dir) {
+        const list = state.filtered.length > 0 ? state.filtered : state.channels;
+        const curIdx = list.findIndex(c => c.id === state.activeChannelId);
+        let n = curIdx + dir;
+        if (n < 0) n = list.length - 1;
+        if (n >= list.length) n = 0;
+        state.focusedChanIdx = n;
+        playChannel(list[n]);
+        toast(`${list[n].name}`);
+    }
+
+    /* ---------- Boot ---------- */
+    async function loadPlaylist() {
+        try {
+            const r = await fetch(PLAYLIST_URL, { cache: 'no-cache' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const data = await r.json();
+            state.channels = data.map((c, i) => ({
+                id: 'ch_' + i,
+                name: c.name || ('Channel ' + (i+1)),
+                tvg_id: c.tvg_id,
+                logo: c.logo || '',
+                group: c.group || 'Other',
+                url: c.proxied_url || c.original_url || '',
+                license_key: c.license_key || '',
+                clearKeys: c.clearKeys || {},
+                headers: c.headers || {}
+            }));
+
+            renderCategories();
+            applyFilter();
+            toast(`Loaded ${state.channels.length} channels`, 'ok');
+
+            // Resume last channel (autoplay)
+            if (settings.lastChannelId) {
+                const last = findCh(settings.lastChannelId);
+                if (last) {
+                    // Just highlight; don't auto-play until user presses Enter (less jarring)
+                    const idx = state.filtered.indexOf(last);
+                    if (idx >= 0) state.focusedChanIdx = idx;
+                    updateFocus();
+                }
+            }
+            updateFocus();
+        } catch (err) {
+            console.error('[Boot]', err);
+            dom.grid.innerHTML = `
+                <div class="empty-state">
+                    <h3 style="color:var(--danger);margin-bottom:0.5rem;">Failed to load playlist</h3>
+                    <p>Couldn't reach <code>${PLAYLIST_URL}</code>. Check your deployment.</p>
+                </div>`;
+        }
+    }
+
+    function init() {
+        dom.search.addEventListener('input', () => {
+            clearTimeout(dom.search._t);
+            dom.search._t = setTimeout(() => {
+                state.searchQuery = dom.search.value.trim();
+                dom.searchClear.classList.toggle('visible', !!state.searchQuery);
+                applyFilter();
+            }, 120);
+        });
+        dom.searchClear.addEventListener('click', () => {
+            state.searchQuery = '';
+            dom.search.value = '';
+            dom.searchClear.classList.remove('visible');
+            dom.search.focus();
+            applyFilter();
+        });
+
+        // Volume init
+        dom.video.volume = settings.volume / 100;
+        renderVolume();
+
+        // Clock
+        updateClock();
+        state.clockTimer = setInterval(updateClock, 1000);
+
+        // EPG refresh for focus/player every 30s
+        state.epgTimer = setInterval(() => {
+            if (state.zone === 'channels' && state.filtered[state.focusedChanIdx]) {
+                refreshEPG(state.filtered[state.focusedChanIdx]);
+            } else if (state.zone === 'player' || state.zone === 'player_drawer') {
+                const c = findCh(state.activeChannelId);
+                if (c) refreshEPG(c);
+            }
+        }, 30000);
+
+        initPlayer().then(loadPlaylist);
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+
+    // Resize handler: when window resizes and we're at an edge, clamp focus
+    window.addEventListener('resize', () => {
+        const total = state.filtered.length;
+        if (state.focusedChanIdx >= total) state.focusedChanIdx = Math.max(0, total - 1);
+        updateFocus();
+    });
+})();
+</script>
+</body>
+</html>
