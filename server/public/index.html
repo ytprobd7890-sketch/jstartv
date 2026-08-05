@@ -1478,7 +1478,7 @@
         releaseWakeLock();
     }
 
-    JStar.closeError = closePlayer; // referenced by inline button
+    window.JStar = { closeError: closePlayer }; // referenced by inline button
 
     /* ---------- live stats ---------- */
     function startStats() {
