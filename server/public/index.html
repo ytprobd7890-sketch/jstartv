@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/5.2.0/shaka-player.compiled.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@5.2.4/dist/shaka-player.compiled.js"></script>
     <style>
         /* ===== RESET & TOKENS ===== */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1706,8 +1706,7 @@
             item.innerHTML = `<span>${escapeHtml(cat)}</span><span class="menu-count">${n}</span>`;
             frag.appendChild(item);
         });
-        dom.catMenu.innerHTML = '<div class="menu-title">Categories</div>' + frag.outerHTML || '';
-        // Above line was wrong; redo properly:
+        // DocumentFragment has no outerHTML — must empty then appendChild
         dom.catMenu.innerHTML = '<div class="menu-title">Categories</div>';
         dom.catMenu.appendChild(frag);
 

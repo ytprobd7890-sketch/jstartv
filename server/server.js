@@ -84,6 +84,8 @@ const CONFIG = {
       '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
     'Accept': '*/*',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.jiocinema.com/',
+    'Origin': 'https://www.jiocinema.com'
   }
 };
 
@@ -157,6 +159,9 @@ function rewriteManifest (body, ct, base) {
   const prefix = `/api/seg?u=`;
 
   function abs (u) {
+    // 1. decode XML/HTML entities (MPD often ships &amp; for &)
+    u = u.replace(/&amp;/g, '&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+    // 2. de-template $RepresentationID$ / $Time$ placeholders? No — let player handle.
     try { return new URL(u, base).href; } catch { return u; }
   }
 
@@ -256,18 +261,18 @@ app.get('/api/playlist', async (_req, reply) => {
   await loadPlaylist();
   const origin = _req.protocol + '://' + _req.hostname;
   const safe = playlist.map(c => {
-    const hasKeys = Object.keys(c.clearKeys || {}).length > 0;
+    const hasKeys = c.clearKeys && Object.keys(c.clearKeys).length > 0;
     return {
       id: c.id, idx: c.idx, name: c.name, logo: c.logo, group: c.group,
       url: `/api/play/${c.idx}`, tvg_id: String(c.idx),
       drm: hasKeys ? 'clearkey' : 'none',
       // point client at our license server (never expose raw keys)
-      license_server: hasKeys ? `${origin}/api/drm/clearkey?ch=${c.idx}` : '',
+      license_server: hasKeys ? `/api/drm/clearkey?ch=${c.idx}` : '',
       clearKeys: {} // empty; client must fetch via license endpoint
     };
   });
   return reply
-    .header('Cache-Control', `public, max-age=${CONFIG.playlistRefreshSec}`)
+    .header('Cache-Control', `public, max-age=${Math.floor(CONFIG.playlistRefreshSec/2)}`)
     .send({ total: safe.length, channels: safe });
 });
 
