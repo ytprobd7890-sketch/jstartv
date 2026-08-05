@@ -248,14 +248,24 @@ app.get('/api/health', async () => ({
   ok: true, channels: playlist.length, cacheSize: cache.size, uptime: process.uptime()|0
 }));
 
+// Legacy /tv.html alias for original bookmarked URL
+app.get('/tv.html', (_req, reply) => reply.sendFile('index.html'));
+
 // playlist for frontend (safe version with our proxy urls)
 app.get('/api/playlist', async (_req, reply) => {
   await loadPlaylist();
-  const safe = playlist.map(c => ({
-    id: c.id, idx: c.idx, name: c.name, logo: c.logo, group: c.group,
-    url: `/api/play/${c.idx}`, tvg_id: String(c.idx),
-    drm: Object.keys(c.clearKeys).length > 0 ? 'clearkey' : 'none'
-  }));
+  const origin = _req.protocol + '://' + _req.hostname;
+  const safe = playlist.map(c => {
+    const hasKeys = Object.keys(c.clearKeys || {}).length > 0;
+    return {
+      id: c.id, idx: c.idx, name: c.name, logo: c.logo, group: c.group,
+      url: `/api/play/${c.idx}`, tvg_id: String(c.idx),
+      drm: hasKeys ? 'clearkey' : 'none',
+      // point client at our license server (never expose raw keys)
+      license_server: hasKeys ? `${origin}/api/drm/clearkey?ch=${c.idx}` : '',
+      clearKeys: {} // empty; client must fetch via license endpoint
+    };
+  });
   return reply
     .header('Cache-Control', `public, max-age=${CONFIG.playlistRefreshSec}`)
     .send({ total: safe.length, channels: safe });
@@ -302,17 +312,29 @@ app.get('/api/epg', async (req) => {
   };
 });
 
+// Also need to parse JSON body for license requests
+app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  try { done(null, JSON.parse(body || '{}')); } catch (e) { done(null, {}); }
+});
+
 // DRM clear-key endpoint (keys never leave the server in the playlist JSON!)
-app.post('/api/drm/clearkey', async (req, reply) => {
+// Supports both Shaka license server flow (POST) and direct GET for m3u8 key URI
+async function clearkeyHandler (req, reply) {
   await loadPlaylist();
-  // CPIX-style or Shaka clearKey request: body {"kids":["..."]} OR kids query param
   let kids = [];
-  try { kids = req.body?.kids || (req.query.kids ? String(req.query.kids).split(',') : []); }
-  catch { kids = []; }
-  // Figure out which channel is being played via Referer / ch query.
+  try {
+    kids = req.body?.kids || (req.query.kids ? String(req.query.kids).split(',') : []);
+  } catch { kids = []; }
+  // Channel from query param
   const refCh = Number(req.query.ch) - 1;
-  const ch = playlist[refCh];
-  if (!ch || Object.keys(ch.clearKeys).length === 0) {
+  // If no ch given, try to detect via Referer URL /api/play/:idx
+  let ch = playlist[refCh];
+  if (!ch) {
+    const ref = req.headers.referer || '';
+    const m = ref.match(/\/api\/play\/(\d+)/);
+    if (m) ch = playlist[Number(m[1]) - 1];
+  }
+  if (!ch || Object.keys(ch.clearKeys || {}).length === 0) {
     return reply.code(404).send({ error: 'no keys for this channel' });
   }
   const keys = [];
@@ -324,7 +346,9 @@ app.post('/api/drm/clearkey', async (req, reply) => {
     });
   }
   return reply.type('application/json').send({ keys });
-});
+}
+app.get('/api/drm/clearkey', clearkeyHandler);
+app.post('/api/drm/clearkey', clearkeyHandler);
 
 // play entry point: returns manifest through our proxy (no upstream URL leaked)
 app.get('/api/play/:idx', async (req, reply) => {
